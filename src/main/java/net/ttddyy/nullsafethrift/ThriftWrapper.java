@@ -20,9 +20,8 @@ public class ThriftWrapper {
      * @param source thrift generated instance
      * @param <T>
      * @return a wrapped proxy
-     * @throws IllegalAccessException
      */
-    public static <T> T w(final T source) throws IllegalAccessException {
+    public static <T> T w(final T source) {
 
         final Class<?> sourceClass = source.getClass();
         final Set<Field> initiallyNullListFields = new HashSet<Field>();
@@ -40,7 +39,7 @@ public class ThriftWrapper {
             final Class<?> fieldType = field.getType();
 
             field.setAccessible(true);
-            final Object value = field.get(source);
+            final Object value = getFieldValue(field, source);
 
             // TODO: these can be cached
             final boolean isThriftClass = isThriftClass(fieldType);
@@ -52,20 +51,20 @@ public class ThriftWrapper {
             if (isThriftClass) {
                 if (value != null) {
                     // traverse all non-null thrift class attributes
-                    field.set(source, w(value));
+                    setFieldValue(field, source, w(value));
                 }
             } else if (isCollection) {
                 containsCollection = true;
                 if (value == null) {
                     if (isList) {
                         initiallyNullListFields.add(field);
-                        field.set(source, new ArrayList<Object>());
+                        setFieldValue(field, source, new ArrayList<Object>());
                     } else if (isSet) {
                         initiallyNullSetFields.add(field);
-                        field.set(source, new HashSet<Object>());
+                        setFieldValue(field, source, new HashSet<Object>());
                     } else {
                         initiallyNullMapFields.add(field);
-                        field.set(source, new HashMap<Object, Object>());
+                        setFieldValue(field, source, new HashMap<Object, Object>());
                     }
                 }
             }
@@ -110,6 +109,22 @@ public class ThriftWrapper {
         });
         return (T) enhancer.create();
 
+    }
+
+    private static Object getFieldValue(Field field, Object source) {
+        try {
+            return field.get(source);
+        } catch (IllegalAccessException ex) {
+            throw new IllegalStateException("Could not access method: " + ex.getMessage());
+        }
+    }
+
+    private static void setFieldValue(Field field, Object source, Object value) {
+        try {
+            field.set(source, value);
+        } catch (IllegalAccessException ex) {
+            throw new IllegalStateException("Could not access method: " + ex.getMessage());
+        }
     }
 
     private static Method getThriftWriteMethod(Class<?> clazz) {
